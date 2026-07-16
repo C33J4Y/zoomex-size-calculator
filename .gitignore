@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Runtime-mutated personal data (auto-seeded from config.js on first run)
+plan.json
+
+# Local Claude Code settings / permission grants
+.claude/settings.local.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

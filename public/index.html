@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Zoomex Position Sizer</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <h1>Zoomex Position Sizer</h1>
+    <span class="sub">USDT-margined alt perps · Zoomex (Bybit engine) · speculative alt sleeve</span>
+  </div>
+  <div id="marginBadge" class="badge badge-on">Isolated: REQUIRED</div>
+</header>
+
+<!-- Your trading plan — never insulated from the risk math. -->
+<section class="dashboard">
+  <h2>Your trading plan</h2>
+  <div class="ack-grid">
+    <div class="ack"><span class="lbl">Account</span><span id="ack-account" class="mono strong">—</span></div>
+    <div class="ack"><span class="lbl">Risk per trade</span><span id="ack-risk" class="mono strong">—</span></div>
+    <div class="ack"><span class="lbl">Leverage</span><span id="ack-lev" class="mono strong">—</span></div>
+    <div class="ack"><span class="lbl">Risk as % of account</span><span id="ack-riskpct" class="mono strong">—</span></div>
+    <div class="ack"><span class="lbl">Losses to halve account</span><span id="ack-halve" class="mono strong">—</span></div>
+    <div class="ack"><span class="lbl">Tradeable stop window</span><span id="ack-window" class="mono strong">—</span></div>
+  </div>
+  <div class="ack-actions">
+    <button type="button" id="amendBtn" class="secondary">Edit trading plan…</button>
+    <span class="hint">Leverage is fixed by the plan (change it here). Account &amp; risk default from the plan — override them per trade below.</span>
+  </div>
+
+  <!-- Amendment panel: preview consequences, then confirm. Hidden until opened. -->
+  <div id="amendPanel" class="amend-panel hidden">
+    <h3>Edit trading plan</h3>
+    <div class="row">
+      <label>Account ($)<input type="number" id="am-account" step="0.01" /></label>
+      <label>Risk per trade ($)<input type="number" id="am-risk" step="0.01" /></label>
+      <label>Leverage (x)<input type="number" id="am-lev" step="1" /></label>
+    </div>
+    <div class="actions">
+      <button type="button" id="previewBtn">Preview consequences</button>
+      <button type="button" id="cancelAmendBtn" class="secondary">Cancel</button>
+    </div>
+    <div id="amendPreview" class="amend-preview hidden"></div>
+  </div>
+</section>
+
+<main class="grid">
+  <section class="card">
+    <h2>Trade inputs</h2>
+    <p class="note">Account &amp; risk default from the plan and can be overridden per trade.
+       Leverage stays plan-fixed (change it via Edit trading plan).</p>
+    <form id="calcForm">
+      <div class="row">
+        <label>Account ($) <em class="opt">this trade</em>
+          <input type="number" name="tradeAccount" id="tradeAccount" step="0.01" />
+        </label>
+        <label>Risk per trade ($) <em class="opt">this trade</em>
+          <input type="number" name="tradeRisk" id="tradeRisk" step="0.01" />
+        </label>
+        <label title="Margin already tied up in other OPEN positions. This trade must fit in the margin that's left. Risk % stays based on the full account.">Committed margin ($) <em class="opt">open trades</em>
+          <input type="number" name="committedMargin" id="committedMargin" step="0.01" placeholder="0" />
+        </label>
+      </div>
+      <div id="planNote" class="plan-note hidden">
+        <span id="offPlanText"></span>
+        <button type="button" id="resetPlanBtn" class="linklike">Reset to plan</button>
+      </div>
+
+      <div class="row">
+        <label>Symbol
+          <select name="symbol" id="symbolSelect"></select>
+        </label>
+        <label id="newSymbolLabel" class="hidden">New symbol
+          <input type="text" id="newSymbol" placeholder="e.g. WIFUSDT" autocomplete="off" />
+        </label>
+        <fieldset class="direction">
+          <legend>Direction</legend>
+          <label><input type="radio" name="direction" value="long" checked /> Long</label>
+          <label><input type="radio" name="direction" value="short" /> Short</label>
+        </fieldset>
+        <label>Margin mode
+          <select name="marginMode" id="marginMode">
+            <option value="isolated" selected>isolated</option>
+            <option value="cross">cross</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="row">
+        <label>Entry price ($)
+          <input type="number" name="entry" id="entry" step="any" required />
+        </label>
+        <label>Stop price (structural invalidation)
+          <input type="number" name="stop" id="stop" step="any" required />
+        </label>
+        <label>Target price ($) <em class="opt">optional</em>
+          <input type="number" name="target" id="target" step="any" />
+        </label>
+      </div>
+
+      <div class="row">
+        <label title="Zoomex taker fee per side. Assumes taker on BOTH entry and exit (worst case); lower it if you enter as a maker. VIP/volume tiers reduce it — verify on the exchange.">Taker fee % (per side)
+          <input type="number" name="takerFeePct" id="takerFeePct" step="0.001" value="0.06" />
+        </label>
+      </div>
+
+      <div id="specStatusLine" class="spec-status hidden"></div>
+
+      <!-- Manual spec entry: revealed only for symbols not in specs.json. -->
+      <fieldset id="specFields" class="spec-fields hidden">
+        <legend>Contract spec (new symbol — enter from the Zoomex contract panel)</legend>
+        <div class="row">
+          <label>minQty<input type="number" id="sp-minQty" step="any" /></label>
+          <label>qtyStep<input type="number" id="sp-qtyStep" step="any" /></label>
+          <label>minNotional<input type="number" id="sp-minNotional" step="any" placeholder="5.0" /></label>
+          <label>contractValue<input type="number" id="sp-contractValue" step="any" placeholder="1" /></label>
+        </div>
+        <div class="actions">
+          <button type="button" id="saveSpecBtn" class="secondary">Save symbol to dropdown</button>
+          <span id="saveSpecMsg" class="hint"></span>
+        </div>
+      </fieldset>
+
+      <div class="actions">
+        <button type="submit" id="calcBtn">Calculate size</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Result</h2>
+    <div id="violations" class="hidden"></div>
+    <div id="warnings" class="hidden"></div>
+    <div id="results" class="results hidden">
+      <!-- Hero: status + the answer -->
+      <div id="r-pill" class="r-pill">—</div>
+      <div class="hero-qty"><span id="r-contracts">—</span> <span id="r-base" class="u"></span></div>
+      <div id="r-heroSub" class="hero-sub">—</div>
+
+      <!-- The numbers that matter: cost, risk, and (with a target) reward -->
+      <div class="trio">
+        <div><div class="k">Margin required</div><div id="r-margin" class="v">—</div></div>
+        <div><div class="k">Net risk at stop</div><div id="r-netLoss" class="v loss">—</div></div>
+        <div id="r-profitCell" class="hidden"><div class="k">Net profit at target</div><div id="r-netProfit" class="v gain">—</div></div>
+        <div id="r-rrCell" class="hidden"><div class="k">Net R:R</div><div id="r-netRR" class="v">—</div></div>
+      </div>
+
+      <!-- Supporting detail, quiet -->
+      <div id="r-fine" class="fine"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <span>Plan: <code>./plan.json</code></span>
+  <span>·</span>
+  <span>Specs: <code>./specs.json</code></span>
+  <span>·</span>
+  <span>Isolated-margin only. No override button — the refusal is the feature.</span>
+</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>

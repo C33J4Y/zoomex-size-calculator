@@ -1,0 +1,16 @@
+{
+  "name": "zoomex-sizing-calculator",
+  "version": "1.0.0",
+  "description": "Localhost-only position sizing tool for Zoomex (Bybit engine) USDT-margined alt perpetuals. SIZE is the output; STOP is the input. Isolated-margin only, no overrides.",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

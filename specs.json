@@ -1,0 +1,100 @@
+{
+  "ONDOUSDT": {
+    "minQty": 1,
+    "qtyStep": 1,
+    "minNotional": 5,
+    "contractValue": 1,
+    "verified": true
+  },
+  "HYPEUSDT": {
+    "minQty": 0.01,
+    "qtyStep": 0.01,
+    "minNotional": 5,
+    "contractValue": 1,
+    "verified": true
+  },
+  "USELESSUSDT": {
+    "minQty": 1,
+    "qtyStep": 1,
+    "minNotional": 5,
+    "contractValue": 1,
+    "verified": true
+  },
+  "RENDERUSDT": {
+    "minQty": 0.1,
+    "qtyStep": 0.1,
+    "minNotional": 5,
+    "contractValue": 1,
+    "verified": true
+  },
+  "PENDLEUSDT": {
+    "minQty": 1,
+    "qtyStep": 1,
+    "minNotional": 5,
+    "contractValue": 1,
+    "verified": true
+  },
+  "AAVEUSDT": {
+    "minQty": 0.01,
+    "qtyStep": 0.01,
+    "minNotional": 5,
+    "contractValue": 1,
+    "verified": true
+  },
+  "TAOUSDT": {
+    "minQty": 0.001,
+    "qtyStep": 0.001,
+    "minNotional": 5,
+    "contractValue": 1,
+    "verified": true
+  },
+  "SUIUSDT": {
+    "minQty": 10,
+    "qtyStep": 10,
+    "minNotional": 5,
+    "contractValue": 1,
+    "verified": true
+  },
+  "INJUSDT": {
+    "minQty": 0.1,
+    "qtyStep": 0.1,
+    "minNotional": 5,
+    "contractValue": 1,
+    "verified": true
+  },
+  "1000PEPEUSDT": {
+    "minQty": 100,
+    "qtyStep": 100,
+    "minNotional": 5,
+    "contractValue": 1,
+    "verified": true
+  },
+  "DOGEUSDT": {
+    "minQty": 1,
+    "qtyStep": 1,
+    "minNotional": 5,
+    "contractValue": 1,
+    "verified": true
+  },
+  "SPCXUSDT": {
+    "minQty": 0.01,
+    "qtyStep": 0.01,
+    "minNotional": 5,
+    "contractValue": 1,
+    "verified": true
+  },
+  "JUPUSDT": {
+    "minQty": 1,
+    "qtyStep": 1,
+    "minNotional": 5,
+    "contractValue": 1,
+    "verified": false
+  },
+  "SOLUSDT": {
+    "minQty": 0.1,
+    "qtyStep": 0.1,
+    "minNotional": 5,
+    "contractValue": 1,
+    "verified": false
+  }
+}
