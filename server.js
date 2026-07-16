@@ -68,7 +68,7 @@ function writeSpecs(specs) {
 
 // How many consecutive full-risk losers (compounding on the running balance)
 // drive the account to half or below: 0.75^n <= 0.5  ->  n = ceil(...).
-// NOTE: the original CLI spec wrote floor(...), but floor undercounts (at 25%
+// NOTE: the original spec wrote floor(...), but floor undercounts (at 25%
 // risk it yields 2, while 0.75^2 = 0.5625 is still ABOVE half — it actually
 // takes 3 losers to cross below). We use ceil so the displayed number is the
 // honest "losses to reach half," matching the spec's own stated "~3 at $50/$200".
@@ -142,7 +142,7 @@ function validateInputs(input, spec) {
 //
 // Resolves the spec, runs the six validation gates, and returns either a refusal
 // (blocked=true with violations) or a fully-sized position. Gate order matters:
-// the margin-mode gate fires BEFORE any math, exactly like the CLI.
+// the margin-mode gate fires BEFORE any math.
 
 function calculate(input, plan, specs) {
   const symbol = (input.symbol || '').toUpperCase();
@@ -428,7 +428,7 @@ app.get('/api/specs', (req, res) => {
 
 // Save (or overwrite) a contract spec so the symbol persists in the dropdown.
 // Always stored as verified:false — confirm on Zoomex before the first trade.
-// Mirrors the Python CLI's self-populating specs.json.
+// specs.json is self-populating: adding a symbol here makes it a dropdown entry.
 app.post('/api/specs', (req, res) => {
   const sym = String((req.body && req.body.symbol) || '').trim().toUpperCase();
   if (!sym) return res.status(400).json({ ok: false, error: 'Symbol name required' });

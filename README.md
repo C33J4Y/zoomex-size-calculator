@@ -6,18 +6,11 @@ A localhost-only **position-sizing calculator** for [Zoomex](https://www.zoomex.
 
 **SIZE is the output. STOP is the input. Never the reverse.** There is no "size-first" mode and no override button — that inversion is how trading accounts die. You place your stop where market structure says it belongs; the tool tells you the largest position that keeps a stop-out inside your risk budget, or refuses if no valid size exists.
 
-It ships in two forms that share the same `plan.json` and `specs.json`:
-
-| Form | Entry point | Stack |
-|------|-------------|-------|
-| **Web app** | `server.js` + `public/` | Node + Express, vanilla JS, GitHub-dark theme |
-| **CLI** | `zoomex_calc.py` | Python 3, standard library only |
+It's a **web app** (`server.js` + `public/`) — Node + Express with a vanilla-JS, GitHub-dark UI. The form is built for **copy-paste straight from the Zoomex GUI**: drop in the entry, stop, target, and contract spec from the exchange panel and read the size back.
 
 ---
 
 ## Quick start
-
-### Web app
 
 ```bash
 npm install        # Node 18+
@@ -25,18 +18,6 @@ npm start          # serves http://localhost:3001 (loopback only)
 ```
 
 Open **http://localhost:3001**. The server binds to `127.0.0.1` only — it is not reachable from your network. It defaults to port **3001** so it can run alongside a companion BTC calculator on 3000; override with `PORT=NNNN npm start`.
-
-### CLI
-
-```bash
-python3 zoomex_calc.py --symbol ONDOUSDT --direction long \
-  --entry 0.3379 --stop 0.3278 --margin-mode isolated
-
-python3 zoomex_calc.py --edit-plan        # change account/risk/leverage (shows consequences first)
-python3 zoomex_calc.py --help
-```
-
-No dependencies, no build step — just Python 3.
 
 ---
 
@@ -92,11 +73,11 @@ Before showing a contract count, the calculator runs six checks. The first five 
 }
 ```
 
-Risk is not a knob to spin mid-trade on a feeling. The only way to change `account` / `risk` / `leverage` is the **Edit trading plan** flow (web) or `--edit-plan` (CLI), which shows the consequences — risk as % of account, consecutive losses to halve the account, and the new tradeable stop window — **before** you confirm. `margin_mode_required` stays `isolated` and is not a UI knob.
+Risk is not a knob to spin mid-trade on a feeling. The only way to change `account` / `risk` / `leverage` is the **Edit trading plan** flow, which shows the consequences — risk as % of account, consecutive losses to halve the account, and the new tradeable stop window — **before** you confirm. `margin_mode_required` stays `isolated` and is not a UI knob.
 
 > **Note:** `plan.json` is **not committed** — it holds personal trading parameters and is auto-created from the `DEFAULT_PLAN` seed in `config.js` on first run. See [Data files](#data-files).
 
-> The "consecutive losses to halve account" figure uses `ceil(ln 0.5 / ln(1 − risk/account))` — the honest count of losses to reach half (3 at the default $50/$200). An earlier spec used `floor`, which undercounts; both the web app and CLI use `ceil` and document the deviation in code.
+> The "consecutive losses to halve account" figure uses `ceil(ln 0.5 / ln(1 − risk/account))` — the honest count of losses to reach half (3 at the default $50/$200). An earlier spec used `floor`, which undercounts; the app uses `ceil` and documents the deviation in code.
 
 ---
 
@@ -108,7 +89,7 @@ Risk is not a knob to spin mid-trade on a feeling. The only way to change `accou
 "ONDOUSDT": { "minQty": 1, "qtyStep": 1, "minNotional": 5, "contractValue": 1, "verified": true }
 ```
 
-Choose **➕ New symbol…** in the UI (or just pass an unknown `--symbol` in the CLI) to enter a spec from the Zoomex contract panel. Saved symbols are stored `verified: false` until you confirm them, and appear in the dropdown on every load. This file is **self-populating** — the app writes to it as you add symbols.
+Choose **➕ New symbol…** in the UI to enter a spec from the Zoomex contract panel. Saved symbols are stored `verified: false` until you confirm them, and appear in the dropdown on every load. This file is **self-populating** — the app writes to it as you add symbols.
 
 ---
 
@@ -158,7 +139,6 @@ Product constants and the first-run plan seed live in `config.js`:
 .
 ├── server.js          # Express server: pure calculate() core + gates + routes
 ├── config.js          # Seed plan and fixed product constants
-├── zoomex_calc.py     # Standalone Python CLI (stdlib only)
 ├── specs.json         # Contract specs — dropdown source (self-populating)
 ├── public/
 │   ├── index.html     # UI markup
