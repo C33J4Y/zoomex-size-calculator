@@ -35,9 +35,9 @@
   <div id="amendPanel" class="amend-panel hidden">
     <h3>Edit trading plan</h3>
     <div class="row">
-      <label>Account ($)<input type="number" id="am-account" step="0.01" /></label>
-      <label>Risk per trade ($)<input type="number" id="am-risk" step="0.01" /></label>
-      <label>Leverage (x)<input type="number" id="am-lev" step="1" /></label>
+      <label>Account ($)<input type="text" inputmode="decimal" id="am-account" autocomplete="off" /></label>
+      <label>Risk per trade ($)<input type="text" inputmode="decimal" id="am-risk" autocomplete="off" /></label>
+      <label>Leverage (x)<input type="text" inputmode="decimal" id="am-lev" autocomplete="off" /></label>
     </div>
     <div class="actions">
       <button type="button" id="previewBtn">Preview consequences</button>
@@ -55,13 +55,13 @@
     <form id="calcForm">
       <div class="row">
         <label>Account ($) <em class="opt">this trade</em>
-          <input type="number" name="tradeAccount" id="tradeAccount" step="0.01" />
+          <input type="text" inputmode="decimal" name="tradeAccount" id="tradeAccount" autocomplete="off" />
         </label>
         <label>Risk per trade ($) <em class="opt">this trade</em>
-          <input type="number" name="tradeRisk" id="tradeRisk" step="0.01" />
+          <input type="text" inputmode="decimal" name="tradeRisk" id="tradeRisk" autocomplete="off" />
         </label>
         <label title="Margin already tied up in other OPEN positions. This trade must fit in the margin that's left. Risk % stays based on the full account.">Committed margin ($) <em class="opt">open trades</em>
-          <input type="number" name="committedMargin" id="committedMargin" step="0.01" placeholder="0" />
+          <input type="text" inputmode="decimal" name="committedMargin" id="committedMargin" autocomplete="off" placeholder="0" />
         </label>
       </div>
       <div id="planNote" class="plan-note hidden">
@@ -103,7 +103,7 @@
 
       <div class="row">
         <label title="Zoomex taker fee per side. Assumes taker on BOTH entry and exit (worst case); lower it if you enter as a maker. VIP/volume tiers reduce it — verify on the exchange.">Taker fee % (per side)
-          <input type="number" name="takerFeePct" id="takerFeePct" step="0.001" value="0.06" />
+          <input type="text" inputmode="decimal" name="takerFeePct" id="takerFeePct" autocomplete="off" value="0.06" />
         </label>
       </div>
 
@@ -113,10 +113,10 @@
       <fieldset id="specFields" class="spec-fields hidden">
         <legend>Contract spec (new symbol — enter from the Zoomex contract panel)</legend>
         <div class="row">
-          <label>minQty<input type="number" id="sp-minQty" step="any" /></label>
-          <label>qtyStep<input type="number" id="sp-qtyStep" step="any" /></label>
-          <label>minNotional<input type="number" id="sp-minNotional" step="any" placeholder="5.0" /></label>
-          <label>contractValue<input type="number" id="sp-contractValue" step="any" placeholder="1" /></label>
+          <label>minQty<input type="text" inputmode="decimal" id="sp-minQty" autocomplete="off" /></label>
+          <label>qtyStep<input type="text" inputmode="decimal" id="sp-qtyStep" autocomplete="off" /></label>
+          <label>minNotional<input type="text" inputmode="decimal" id="sp-minNotional" autocomplete="off" placeholder="5.0" /></label>
+          <label>contractValue<input type="text" inputmode="decimal" id="sp-contractValue" autocomplete="off" placeholder="1" /></label>
         </div>
         <div class="actions">
           <button type="button" id="saveSpecBtn" class="secondary">Save symbol to dropdown</button>

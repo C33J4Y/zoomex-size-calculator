@@ -39,6 +39,9 @@ const NEW_SYMBOL = '__new__'; // sentinel option that reveals the new-symbol fie
 })();
 
 function bindBehavior() {
+  // Attach first so numeric fields are sanitized before the ack-strip listeners
+  // below read their values on each input event.
+  attachNumericGuards();
   $('calcForm').addEventListener('submit', onCalculate);
   $('symbolSelect').addEventListener('change', applySymbolSpecState);
   $('newSymbol').addEventListener('input', applySymbolSpecState);
@@ -50,20 +53,25 @@ function bindBehavior() {
   $('tradeRisk').addEventListener('input', renderAckLive);
   $('committedMargin').addEventListener('input', renderAckLive);
   $('resetPlanBtn').addEventListener('click', () => { seedTradeInputs(); renderAckLive(); });
-  attachPriceGuards();
 }
 
-// ---------- Price-input guards (entry / stop / target) ----------
-// These fields take a copy-paste price straight from the Zoomex GUI. Two goals:
+// ---------- Numeric-input guards ----------
+// Every field that takes a number (prices, account/risk, fees, contract specs) is
+// a copy-paste target from the Zoomex GUI. Two goals for all of them:
 //   1. Only a positive decimal is ever allowed in the box — no letters, no stray
 //      symbols, no second decimal point.
 //   2. A paste REPLACES the field instead of appending, so a fast double Ctrl+V
-//      leaves one price, not "0.33790.3379". Because we preventDefault and rewrite
+//      leaves one number, not "0.33790.3379". Because we preventDefault and rewrite
 //      the whole value, the second paste just overwrites with the same number.
-const PRICE_FIELDS = ['entry', 'stop', 'target'];
+const NUMERIC_FIELDS = [
+  'entry', 'stop', 'target',                                  // prices
+  'tradeAccount', 'tradeRisk', 'committedMargin', 'takerFeePct', // per-trade
+  'am-account', 'am-risk', 'am-lev',                          // plan amendment
+  'sp-minQty', 'sp-qtyStep', 'sp-minNotional', 'sp-contractValue', // contract spec
+];
 
 // Keep digits and a SINGLE decimal point; drop everything else (later dots too).
-function sanitizePrice(raw) {
+function sanitizeDecimal(raw) {
   let s = String(raw).replace(/[^\d.]/g, '');
   const firstDot = s.indexOf('.');
   if (firstDot !== -1) {
@@ -72,8 +80,8 @@ function sanitizePrice(raw) {
   return s;
 }
 
-function attachPriceGuards() {
-  PRICE_FIELDS.forEach((id) => {
+function attachNumericGuards() {
+  NUMERIC_FIELDS.forEach((id) => {
     const el = $(id);
     if (!el) return;
 
@@ -81,22 +89,24 @@ function attachPriceGuards() {
     // preserving the caret position relative to the surviving characters.
     el.addEventListener('input', () => {
       const before = el.value;
-      const clean = sanitizePrice(before);
+      const clean = sanitizeDecimal(before);
       if (clean === before) return;
       const caret = el.selectionStart == null ? clean.length : el.selectionStart;
-      const keptBeforeCaret = sanitizePrice(before.slice(0, caret)).length;
+      const keptBeforeCaret = sanitizeDecimal(before.slice(0, caret)).length;
       el.value = clean;
       el.setSelectionRange(keptBeforeCaret, keptBeforeCaret);
     });
 
     // Paste: swallow the default and set the whole field to the sanitized clipboard
-    // price. Replacing (not inserting) is what defeats the accidental double paste.
+    // value. Replacing (not inserting) is what defeats the accidental double paste.
+    // Re-dispatch 'input' so dependent listeners (e.g. the live ack strip) refresh.
     el.addEventListener('paste', (e) => {
       e.preventDefault();
       const cb = e.clipboardData || window.clipboardData;
       const text = cb ? cb.getData('text') : '';
-      el.value = sanitizePrice(text);
+      el.value = sanitizeDecimal(text);
       el.setSelectionRange(el.value.length, el.value.length);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
     });
   });
 }
