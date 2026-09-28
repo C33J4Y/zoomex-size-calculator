@@ -96,5 +96,12 @@
     "minNotional": 5,
     "contractValue": 1,
     "verified": false
+  },
+  "BTCUSDT": {
+    "minQty": 0.001,
+    "qtyStep": 0.001,
+    "minNotional": 5,
+    "contractValue": 1,
+    "verified": false
   }
 }
