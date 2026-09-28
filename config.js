@@ -16,8 +16,15 @@ module.exports = {
     leverage: 10,
     margin_mode_required: 'isolated',
   },
+  HYPERLIQUID_DEFAULT_PLAN: {
+    account: 2900.0,
+    risk: 500.0,
+    leverage: 20,
+    margin_mode_required: 'isolated',
+  },
 
   PLAN_FILE: 'plan.json',
+  HYPERLIQUID_PLAN_FILE: 'hyperliquid-plan.json',
   SPECS_FILE: 'specs.json',
 
   // Applied when a contract spec omits these fields.
@@ -28,6 +35,7 @@ module.exports = {
   // percentage taker fee on notional and has no per-contract fee. Verify your
   // tier on the exchange — VIP/volume tiers lower it. Overridable per trade.
   DEFAULT_TAKER_FEE_PCT: 0.06,
+  HYPERLIQUID_TAKER_FEE_PCT: 0.045,
 
   // Soft warning: round-trip fees exceeding this % of the risk budget flag a
   // high-fee trade (stop too tight relative to fees, or fee rate too high).

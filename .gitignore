@@ -3,6 +3,7 @@ node_modules/
 
 # Runtime-mutated personal data (auto-seeded from config.js on first run)
 plan.json
+hyperliquid-plan.json
 
 # Local Claude Code settings / permission grants
 .claude/settings.local.json

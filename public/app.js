@@ -25,6 +25,7 @@ const fmt = {
 
 let knownSpecs = {};   // symbol -> spec, from /api/specs
 let currentPlan = null;
+let currentExchange = 'zoomex';
 
 const NEW_SYMBOL = '__new__'; // sentinel option that reveals the new-symbol field
 
@@ -36,6 +37,7 @@ const NEW_SYMBOL = '__new__'; // sentinel option that reveals the new-symbol fie
   populateSymbols();
   bindBehavior();
   applySymbolSpecState();
+  $('exchangeSelect').addEventListener('change', onExchangeChange);
 })();
 
 function bindBehavior() {
@@ -53,6 +55,51 @@ function bindBehavior() {
   $('tradeRisk').addEventListener('input', renderAckLive);
   $('committedMargin').addEventListener('input', renderAckLive);
   $('resetPlanBtn').addEventListener('click', () => { seedTradeInputs(); renderAckLive(); });
+  $('refreshSpecBtn').addEventListener('click', () => refreshHyperliquidSpec(true));
+}
+
+async function onExchangeChange() {
+  currentExchange = $('exchangeSelect').value;
+  $('marginMode').value = 'isolated';
+  $('marginMode').disabled = currentExchange === 'hyperliquid';
+  $('marginBadge').textContent = currentExchange === 'hyperliquid' ? 'Hyperliquid · Isolated' : 'Isolated: REQUIRED';
+  $('symbolRow').classList.toggle('hidden', currentExchange === 'hyperliquid');
+  $('specStatusLine').classList.add('hidden');
+  $('refreshSpecBtn').classList.toggle('hidden', currentExchange !== 'hyperliquid');
+  $('specFields').classList.add('hidden');
+  $('results').classList.add('hidden');
+  $('violations').classList.add('hidden');
+  $('warnings').classList.add('hidden');
+  $('takerFeePct').value = currentExchange === 'hyperliquid' ? '0.045' : '0.06';
+  $('brandTitle').textContent = currentExchange === 'hyperliquid' ? 'Hyperliquid BTC Position Sizer' : 'Zoomex Position Sizer';
+  document.title = $('brandTitle').textContent;
+  $('brandSubtitle').textContent = currentExchange === 'hyperliquid'
+    ? 'BTC perpetual · USDC-margined · Rabby onchain wallet · manual equity'
+    : 'USDT-margined alt perps · Zoomex (Bybit engine) · speculative alt sleeve';
+  $('feeLabel').title = currentExchange === 'hyperliquid'
+    ? 'Hyperliquid taker fee per side. Assumes taker on BOTH entry and exit; edit for your fee tier or execution assumption.'
+    : 'Zoomex taker fee per side. Assumes taker on BOTH entry and exit; verify your tier on the exchange.';
+  await refreshPlan();
+  if (currentExchange === 'hyperliquid') await refreshHyperliquidSpec();
+  else applySymbolSpecState();
+}
+
+async function refreshHyperliquidSpec(refresh = false) {
+  const line = $('specStatusLine');
+  line.className = 'spec-status unverified';
+  line.textContent = 'Loading live BTC contract precision and leverage limits…';
+  line.classList.remove('hidden');
+  try {
+    const url = '/api/hyperliquid/spec' + (refresh ? '?refresh=true' : '');
+    const response = await fetch(url);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Metadata request failed');
+    line.className = 'spec-status verified';
+    line.textContent = `Hyperliquid BTC metadata verified · size step ${fmt.qty(data.spec.qtyStep)} BTC · max leverage ${data.spec.maxLeverage}x · $${fmt.qty(data.spec.minNotional)} minimum assumed`;
+  } catch (error) {
+    line.className = 'spec-status unverified';
+    line.textContent = error.message;
+  }
 }
 
 // ---------- Numeric-input guards ----------
@@ -170,7 +217,7 @@ function lossesToHalve(account, risk) {
 }
 
 async function refreshPlan() {
-  const data = await (await fetch('/api/plan')).json();
+  const data = await (await fetch('/api/plan?exchange=' + encodeURIComponent(currentExchange))).json();
   currentPlan = data.plan;
   seedTradeInputs();   // (re)seed the per-trade account/risk from the saved plan
   renderAckLive();
@@ -230,6 +277,7 @@ function openAmend() {
 
 async function onPreview() {
   const body = {
+    exchange: currentExchange,
     account: $('am-account').value,
     risk: $('am-risk').value,
     leverage: $('am-lev').value,
@@ -268,7 +316,7 @@ function pvRow(label, val) {
 async function commitAmend(proposed) {
   const resp = await fetch('/api/plan/amend', {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ ...proposed, confirm: true }),
+    body: JSON.stringify({ ...proposed, exchange: currentExchange, confirm: true }),
   });
   const data = await resp.json();
   if (!resp.ok || !data.ok) { alert("Couldn't save plan: " + (data.error || 'unknown')); return; }
@@ -279,6 +327,7 @@ async function commitAmend(proposed) {
 // ---------- Spec state for the typed symbol ----------
 
 function applySymbolSpecState() {
+  if (currentExchange === 'hyperliquid') return;
   // Reveal the free-text field only when "New symbol…" is chosen.
   const isNew = $('symbolSelect').value === NEW_SYMBOL;
   $('newSymbolLabel').classList.toggle('hidden', !isNew);
@@ -313,9 +362,10 @@ function readForm() {
   const sym = currentSymbol();
   const targetVal = $('target').value;
   const body = {
-    symbol: sym,
+    exchange: currentExchange,
+    symbol: currentExchange === 'hyperliquid' ? 'BTC' : sym,
     direction: document.querySelector('input[name="direction"]:checked').value,
-    marginMode: $('marginMode').value,
+    marginMode: currentExchange === 'hyperliquid' ? 'isolated' : $('marginMode').value,
     // Per-trade account/risk overrides; blank falls back to the plan baseline.
     account: $('tradeAccount').value === '' ? null : Number($('tradeAccount').value),
     risk: $('tradeRisk').value === '' ? null : Number($('tradeRisk').value),

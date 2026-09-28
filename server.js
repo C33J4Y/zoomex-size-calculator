@@ -15,7 +15,9 @@ const config = require('./config');
 const app = express();
 const PORT = process.env.PORT || config.PORT;
 const PLAN_FILE = path.join(__dirname, config.PLAN_FILE);
+const HYPERLIQUID_PLAN_FILE = path.join(__dirname, config.HYPERLIQUID_PLAN_FILE);
 const SPECS_FILE = path.join(__dirname, config.SPECS_FILE);
+let hyperliquidSpecCache = null;
 
 app.use(express.json());
 // Serve the UI with no-store so the browser always loads the freshest HTML/JS/CSS.
@@ -29,26 +31,41 @@ app.use(express.static(path.join(__dirname, 'public'), {
 
 // ---------- Plan & spec persistence (the only files this app writes) ----------
 
-function readPlan() {
+function normalizeExchange(exchange) {
+  return String(exchange || 'zoomex').toLowerCase() === 'hyperliquid' ? 'hyperliquid' : 'zoomex';
+}
+
+function planFileFor(exchange) {
+  return normalizeExchange(exchange) === 'hyperliquid' ? HYPERLIQUID_PLAN_FILE : PLAN_FILE;
+}
+
+function defaultsFor(exchange) {
+  return normalizeExchange(exchange) === 'hyperliquid'
+    ? config.HYPERLIQUID_DEFAULT_PLAN : config.DEFAULT_PLAN;
+}
+
+function readPlan(exchange = 'zoomex') {
+  const planFile = planFileFor(exchange);
+  const defaults = defaultsFor(exchange);
   // Create plan.json with seed defaults on first run if missing.
-  if (!fs.existsSync(PLAN_FILE)) {
-    fs.writeFileSync(PLAN_FILE, JSON.stringify(config.DEFAULT_PLAN, null, 2));
+  if (!fs.existsSync(planFile)) {
+    fs.writeFileSync(planFile, JSON.stringify(defaults, null, 2));
   }
   let c;
   try {
-    c = JSON.parse(fs.readFileSync(PLAN_FILE, 'utf8'));
+    c = JSON.parse(fs.readFileSync(planFile, 'utf8'));
   } catch (e) {
-    c = { ...config.DEFAULT_PLAN };
+    c = { ...defaults };
   }
   // Backfill any missing keys so an old/partial file still works.
-  for (const k of Object.keys(config.DEFAULT_PLAN)) {
-    if (c[k] === undefined) c[k] = config.DEFAULT_PLAN[k];
+  for (const k of Object.keys(defaults)) {
+    if (c[k] === undefined) c[k] = defaults[k];
   }
   return c;
 }
 
-function writePlan(plan) {
-  fs.writeFileSync(PLAN_FILE, JSON.stringify(plan, null, 2));
+function writePlan(plan, exchange = 'zoomex') {
+  fs.writeFileSync(planFileFor(exchange), JSON.stringify(plan, null, 2));
 }
 
 function readSpecs() {
@@ -62,6 +79,41 @@ function readSpecs() {
 
 function writeSpecs(specs) {
   fs.writeFileSync(SPECS_FILE, JSON.stringify(specs, null, 2));
+}
+
+async function fetchHyperliquidBtcSpec(forceRefresh = false) {
+  if (!forceRefresh && hyperliquidSpecCache && hyperliquidSpecCache.expiresAt > Date.now()) {
+    return hyperliquidSpecCache.spec;
+  }
+
+  const response = await fetch('https://api.hyperliquid.xyz/info', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ type: 'meta' }),
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) throw new Error(`Hyperliquid metadata request failed (${response.status})`);
+
+  const metadata = await response.json();
+  const btc = Array.isArray(metadata.universe)
+    ? metadata.universe.find((asset) => asset.name === 'BTC')
+    : null;
+  if (!btc || !Number.isInteger(btc.szDecimals) || !(btc.maxLeverage > 0)) {
+    throw new Error('Hyperliquid BTC metadata was missing or invalid');
+  }
+
+  const step = 10 ** -btc.szDecimals;
+  const spec = {
+    minQty: step,
+    qtyStep: step,
+    minNotional: 10,
+    contractValue: 1,
+    maxLeverage: btc.maxLeverage,
+    verified: true,
+    source: 'Hyperliquid public metadata; $10 minimum notional configured',
+  };
+  hyperliquidSpecCache = { spec, expiresAt: Date.now() + 15 * 60 * 1000 };
+  return spec;
 }
 
 // ---------- Shared risk math ----------
@@ -159,6 +211,7 @@ function calculate(input, plan, specs) {
       qtyStep: s.qtyStep,
       minNotional: s.minNotional !== undefined ? s.minNotional : config.DEFAULT_MIN_NOTIONAL,
       contractValue: s.contractValue !== undefined ? s.contractValue : config.DEFAULT_CONTRACT_VALUE,
+      maxLeverage: s.maxLeverage,
       verified: !!s.verified,
     };
     specStatus = s.verified ? 'saved/verified' : 'saved/UNVERIFIED';
@@ -182,8 +235,11 @@ function calculate(input, plan, specs) {
   const requiredMode = (plan.margin_mode_required || 'isolated').toLowerCase();
   const { direction, entry, stop } = input;
   const marginMode = String(input.marginMode).toLowerCase();
+  const exchange = normalizeExchange(input.exchange);
+  const defaultTakerFeePct = exchange === 'hyperliquid'
+    ? config.HYPERLIQUID_TAKER_FEE_PCT : config.DEFAULT_TAKER_FEE_PCT;
   const takerFeePct = (typeof input.takerFeePct === 'number' && isFinite(input.takerFeePct) && input.takerFeePct >= 0)
-    ? input.takerFeePct : config.DEFAULT_TAKER_FEE_PCT;
+    ? input.takerFeePct : defaultTakerFeePct;
 
   const violations = [];
   const warnings = [];
@@ -208,6 +264,20 @@ function calculate(input, plan, specs) {
     };
   }
 
+  if (spec.maxLeverage && leverage > spec.maxLeverage) {
+    return {
+      ok: true,
+      blocked: true,
+      preMath: true,
+      symbol, specStatus,
+      violations: [{
+        type: 'max_leverage',
+        message: `Selected leverage ${leverage}x exceeds Hyperliquid's current BTC maximum of ${spec.maxLeverage}x.`,
+      }],
+      warnings: [],
+    };
+  }
+
   // GATE 2: direction / stop consistency. Long stops below entry, short above.
   if (direction === 'long' && !(stop < entry)) {
     violations.push({ type: 'direction_stop', message: `LONG requires the stop (${fmtPrice(stop)}) BELOW entry (${fmtPrice(entry)}).` });
@@ -227,7 +297,7 @@ function calculate(input, plan, specs) {
   }
 
   // ---------- Fees (round-trip taker, on notional both sides) ----------
-  // Zoomex charges a percentage taker fee per side and no per-contract fee.
+  // Supported perps charge a percentage fee per side and no per-contract fee.
   // We size against NET loss INCLUDING fees, so being stopped out — fees and all —
   // costs the risk budget and no more, which is the only promise this tool makes.
   // Assumes taker on BOTH entry and exit (worst case); lower the rate if you enter
@@ -409,9 +479,11 @@ function fmtQty(x) {
 
 // Current plan + the standing acknowledgment math + the tradeable window.
 app.get('/api/plan', (req, res) => {
-  const plan = readPlan();
+  const exchange = normalizeExchange(req.query.exchange);
+  const plan = readPlan(exchange);
   const { floorPct, ceilingPct } = stopWindow(plan.account, plan.risk, plan.leverage);
   res.json({
+    exchange,
     plan,
     acknowledgment: {
       riskPctAcct: (plan.risk / plan.account) * 100,
@@ -419,6 +491,18 @@ app.get('/api/plan', (req, res) => {
     },
     window: { floorPct, ceilingPct },
   });
+});
+
+app.get('/api/hyperliquid/spec', async (req, res) => {
+  try {
+    const spec = await fetchHyperliquidBtcSpec(req.query.refresh === 'true');
+    res.json({ symbol: 'BTC', spec, refreshedAt: new Date().toISOString() });
+  } catch (error) {
+    res.status(502).json({
+      ok: false,
+      error: `${error.message}. BTC size is unavailable until live contract metadata can be verified.`,
+    });
+  }
 });
 
 // Known specs, so the client can tell verified symbols from ones needing manual entry.
@@ -457,7 +541,8 @@ app.post('/api/specs', (req, res) => {
 // Pure sizing calc — never writes anything.
 app.post('/api/calculate', (req, res) => {
   const b = req.body || {};
-  const plan = readPlan();
+  const exchange = normalizeExchange(b.exchange);
+  const plan = readPlan(exchange);
 
   // Per-trade overrides: account and risk may be supplied for THIS calc only.
   // They never rewrite plan.json — the saved plan stays the baseline and is
@@ -482,12 +567,23 @@ app.post('/api/calculate', (req, res) => {
   }
   if (errs.length) return res.json({ ok: false, validationErrors: errs });
 
+  if (exchange === 'hyperliquid') {
+    fetchHyperliquidBtcSpec().then((spec) => {
+      res.json(calculate({ ...b, symbol: 'BTC' }, eff, { BTC: spec }));
+    }).catch((error) => {
+      res.status(502).json({ ok: false, validationErrors: [
+        `${error.message}. Refresh Hyperliquid metadata before calculating.`,
+      ] });
+    });
+    return;
+  }
   res.json(calculate(b, eff, readSpecs()));
 });
 
 // Amendment preview: the CONSEQUENCES of a proposed plan, shown BEFORE saving.
 app.post('/api/plan/preview', (req, res) => {
-  const current = readPlan();
+  const exchange = normalizeExchange(req.body.exchange);
+  const current = readPlan(exchange);
   const account = numOr(req.body.account, current.account);
   const risk = numOr(req.body.risk, current.risk);
   const leverage = numOr(req.body.leverage, current.leverage);
@@ -517,7 +613,8 @@ app.post('/api/plan/amend', (req, res) => {
   if (req.body.confirm !== true) {
     return res.status(400).json({ ok: false, error: 'Confirmation required: send { "confirm": true }' });
   }
-  const current = readPlan();
+  const exchange = normalizeExchange(req.body.exchange);
+  const current = readPlan(exchange);
   const account = numOr(req.body.account, current.account);
   const risk = numOr(req.body.risk, current.risk);
   const leverage = numOr(req.body.leverage, current.leverage);
@@ -531,7 +628,7 @@ app.post('/api/plan/amend', (req, res) => {
     leverage: Number(leverage),
     margin_mode_required: current.margin_mode_required || 'isolated',
   };
-  writePlan(next);
+  writePlan(next, exchange);
   res.json({ ok: true, plan: next });
 });
 

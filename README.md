@@ -1,12 +1,12 @@
-# Zoomex Position Sizer
+# Perpetual Position Sizer
 
-A localhost-only **position-sizing calculator** for [Zoomex](https://www.zoomex.com/) (Bybit-engine) USDT-margined alt perpetuals. It answers one question honestly:
+A localhost-only **position-sizing calculator** for [Zoomex](https://www.zoomex.com/) USDT-margined perpetuals and [Hyperliquid](https://hyperliquid.xyz/) BTC perpetuals. Select the exchange in the header. It answers one question honestly:
 
 > Given a fixed dollar risk and a **structurally-placed stop**, how many contracts do I buy?
 
 **SIZE is the output. STOP is the input. Never the reverse.** There is no "size-first" mode and no override button — that inversion is how trading accounts die. You place your stop where market structure says it belongs; the tool tells you the largest position that keeps a stop-out inside your risk budget, or refuses if no valid size exists.
 
-It's a **web app** (`server.js` + `public/`) — Node + Express with a vanilla-JS, GitHub-dark UI. The form is built for **copy-paste straight from the Zoomex GUI**: drop in the entry, stop, target, and contract spec from the exchange panel and read the size back.
+It's a **web app** (`server.js` + `public/`) — Node + Express with a vanilla-JS UI. Zoomex continues to use local contract specs; Hyperliquid uses live public BTC contract metadata and a separate plan. No wallet connection or signing is used: enter your Hyperliquid account equity manually.
 
 ---
 
@@ -23,7 +23,7 @@ Open **http://localhost:3001**. The server binds to `127.0.0.1` only — it is n
 
 ## How sizing works
 
-For a linear USDT-margined perpetual, the loss per contract if price hits your stop is the price move **plus round-trip taker fees**. Sizing against that all-in loss caps a stop-out at your risk budget and no more:
+For a linear perpetual, the loss per BTC if price hits your stop is the price move **plus round-trip trading fees**. Sizing against that all-in loss caps the modeled stop-out at your risk budget and no more:
 
 ```
 netLossPerUnit = |entry − stop| + (entry + stop) × feeRate
@@ -54,7 +54,11 @@ Before showing a contract count, the calculator runs six checks. The first five 
 
 ## Fees & profit target
 
-**Fees.** The default **taker fee** is `0.06%` per side (`DEFAULT_TAKER_FEE_PCT`), assuming taker on **both** entry and exit (worst case). Lower it if you enter as a maker; set it to `0` to reproduce pure gross sizing. Results separate **gross** (price move only) from **net** (all-in, ≤ budget) on both the loss and profit sides. Round-trip fees above `HIGH_FEE_THRESHOLD_PCT` (15%) of the risk budget raise a soft warning.
+**Fees.** Zoomex defaults to `0.06%`; Hyperliquid defaults to the supplied `0.045%` taker fee per side. The calculator assumes taker on both entry and exit; edit the rate for your tier or execution assumption. Results separate gross price movement from net P&L including the fee estimate. Funding is not included.
+
+**Hyperliquid BTC rules.** The server calls Hyperliquid's public `/info` metadata endpoint for BTC size precision and maximum leverage, caching the result for 15 minutes. Use **Refresh BTC rules** to bypass the cache. The $10 minimum notional is a configured assumption, not a field returned by that metadata endpoint. Hyperliquid gets its own ignored `hyperliquid-plan.json`, seeded with $2,900 equity, $500 risk, 20x leverage, and isolated margin. These are editable in the trading-plan flow. The Rabby wallet is not queried.
+
+**Liquidation.** The displayed liquidation level uses the simple `1 / leverage` estimate. Actual liquidation depends on Hyperliquid maintenance-margin tiers, fees, and position/account state; do not treat that display as an exchange liquidation price. Stops can slip or gap, so realized losses can exceed the modeled risk.
 
 **Profit target.** An optional target price reports the reward side — **gross/net profit, R:R, and break-even win rate**. It does **not** drive size; size comes only from risk + stop. There is no "size to a profit target" mode.
 
@@ -62,7 +66,7 @@ Before showing a contract count, the calculator runs six checks. The first five 
 
 ## The trading plan
 
-`plan.json` holds the four values that are **fixed for a session**:
+`plan.json` holds Zoomex values; `hyperliquid-plan.json` independently holds Hyperliquid values. Each plan's account, risk, leverage, and required margin mode are:
 
 ```json
 {
@@ -75,7 +79,7 @@ Before showing a contract count, the calculator runs six checks. The first five 
 
 Risk is not a knob to spin mid-trade on a feeling. The only way to change `account` / `risk` / `leverage` is the **Edit trading plan** flow, which shows the consequences — risk as % of account, consecutive losses to halve the account, and the new tradeable stop window — **before** you confirm. `margin_mode_required` stays `isolated` and is not a UI knob.
 
-> **Note:** `plan.json` is **not committed** — it holds personal trading parameters and is auto-created from the `DEFAULT_PLAN` seed in `config.js` on first run. See [Data files](#data-files).
+> **Note:** Neither plan file is committed. They are auto-created from the exchange-specific seed in `config.js` on first use. See [Data files](#data-files).
 
 > The "consecutive losses to halve account" figure uses `ceil(ln 0.5 / ln(1 − risk/account))` — the honest count of losses to reach half (3 at the default $50/$200). An earlier spec used `floor`, which undercounts; the app uses `ceil` and documents the deviation in code.
 
@@ -99,8 +103,9 @@ All routes are served from `http://localhost:3001`.
 
 | Method | Route | Description |
 |--------|-------|-------------|
-| `GET`  | `/api/plan` | Current plan + standing acknowledgment + tradeable window |
+| `GET`  | `/api/plan?exchange=zoomex\|hyperliquid` | Selected plan + standing acknowledgment + tradeable window |
 | `GET`  | `/api/specs` | Known contract specs (the dropdown source) |
+| `GET`  | `/api/hyperliquid/spec` | Fetch/cache live public BTC precision and leverage metadata |
 | `POST` | `/api/specs` | Save a symbol's spec to `specs.json` (stored `verified: false`) |
 | `POST` | `/api/calculate` | Pure sizing calc — **never writes anything** |
 | `POST` | `/api/plan/preview` | Consequences of a proposed plan (no write) |
@@ -151,13 +156,14 @@ Product constants and the first-run plan seed live in `config.js`:
 
 | File | Committed? | Notes |
 |------|:---:|-------|
-| `plan.json` | **No** (`.gitignore`) | Personal trading params; auto-seeded from `config.js` on first run |
+| `plan.json` | **No** (`.gitignore`) | Zoomex trading params; auto-seeded from `config.js` on first use |
+| `hyperliquid-plan.json` | **No** (`.gitignore`) | Separate Hyperliquid trading params; auto-seeded from `config.js` on first use |
 | `specs.json` | Yes | Contract specs; mutated at runtime as you add symbols |
 
 ---
 
 ## Scope
 
-This is the **sizer core**: calculator + gates + editing the trading plan. It deliberately has **no** trade journal, P&L dashboard, daily/weekly caps, or kill switches. It makes no network calls and stores nothing beyond `plan.json` and `specs.json` on your own disk.
+This is the **sizer core**: calculator + gates + editing the trading plan. It deliberately has **no** trade journal, P&L dashboard, daily/weekly caps, or kill switches. It makes no wallet or trading calls. Hyperliquid mode makes a read-only request to its public metadata API; the app stores plans and Zoomex specs on your own disk.
 
-Nothing here is financial advice. Contract specs and fees change — always verify against the live Zoomex contract panel before trading.
+Nothing here is financial advice. Contract rules and fees can change; verify them on the exchange before trading. The calculator does not place orders.

@@ -9,9 +9,15 @@
 <body>
 <header class="topbar">
   <div class="brand">
-    <h1>Zoomex Position Sizer</h1>
-    <span class="sub">USDT-margined alt perps · Zoomex (Bybit engine) · speculative alt sleeve</span>
+    <h1 id="brandTitle">Zoomex Position Sizer</h1>
+    <span id="brandSubtitle" class="sub">USDT-margined alt perps · Zoomex (Bybit engine) · speculative alt sleeve</span>
   </div>
+  <label class="exchange-picker">Exchange
+    <select id="exchangeSelect">
+      <option value="zoomex" selected>Zoomex</option>
+      <option value="hyperliquid">Hyperliquid</option>
+    </select>
+  </label>
   <div id="marginBadge" class="badge badge-on">Isolated: REQUIRED</div>
 </header>
 
@@ -69,7 +75,7 @@
         <button type="button" id="resetPlanBtn" class="linklike">Reset to plan</button>
       </div>
 
-      <div class="row">
+      <div class="row" id="symbolRow">
         <label>Symbol
           <select name="symbol" id="symbolSelect"></select>
         </label>
@@ -102,12 +108,15 @@
       </div>
 
       <div class="row">
-        <label title="Zoomex taker fee per side. Assumes taker on BOTH entry and exit (worst case); lower it if you enter as a maker. VIP/volume tiers reduce it — verify on the exchange.">Taker fee % (per side)
+        <label id="feeLabel" title="Zoomex taker fee per side. Assumes taker on BOTH entry and exit; verify your tier on the exchange.">Taker fee % (per side)
           <input type="text" inputmode="decimal" name="takerFeePct" id="takerFeePct" autocomplete="off" value="0.06" />
         </label>
       </div>
 
-      <div id="specStatusLine" class="spec-status hidden"></div>
+      <div class="spec-row">
+        <div id="specStatusLine" class="spec-status hidden"></div>
+        <button type="button" id="refreshSpecBtn" class="secondary hidden" title="Fetch current BTC size precision and leverage from Hyperliquid">Refresh BTC rules</button>
+      </div>
 
       <!-- Manual spec entry: revealed only for symbols not in specs.json. -->
       <fieldset id="specFields" class="spec-fields hidden">

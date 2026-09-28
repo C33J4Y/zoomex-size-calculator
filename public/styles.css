@@ -37,6 +37,9 @@ html, body {
 }
 .brand h1 { margin: 0; font-size: 18px; letter-spacing: 0.2px; }
 .brand .sub { color: var(--muted); font-size: 12px; }
+.exchange-picker { min-width: 150px; }
+.spec-row { display: flex; align-items: stretch; gap: 8px; margin-bottom: 12px; }
+.spec-row .spec-status { flex: 1; margin: 0; }
 .badge {
   padding: 6px 10px;
   border-radius: 6px;
@@ -307,4 +310,6 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 @media (max-width: 800px) {
   .grid { grid-template-columns: 1fr; }
+  .topbar { flex-wrap: wrap; gap: 10px; }
+  .exchange-picker { min-width: 120px; }
 }
